@@ -24,30 +24,42 @@ mkdir $resultsFolder
 $workingDir=Get-Location
 write-host "Working location: " $workingDir
 
-# NVM, NODE, YARN PART
-write-host "Installing Node JS"
-# Check if NVM is installed
-if (-not (Command-Exists "node")) {
-    write-host "Command 'node' does not exist"
-    # alternative to using nvm installer - using winget
-    winget install OpenJs.NodeJS.LTS
-    # add node on the path
-    $env:PATH += ";$env:C:\Program Files\nodejs\;"
+# Specify the user profile directory
+$userProfile = $env:USERPROFILE
+
+# Specify the shared tools directory
+$toolsInstallDir = Join-Path $userProfile 'tools'
+
+# Create the tools directory if it doesn't exist
+if (-not (Test-Path -Path $toolsInstallDir -PathType Container)) {
+    New-Item -Path $toolsInstallDir -ItemType Directory
 }
 
-# verify node installation
+if (-not (Command-Exists "node -v")) {
+    # Download and install the latest version of Node.js
+    write-host "Installing node"
+    # $nodejsLatestVersion = (Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' | Sort-Object -Property version -Descending)[0].version
+    $nodejsLatestVersion = "v18.18.0"
+    Invoke-WebRequest -Uri "https://nodejs.org/dist/$nodejsLatestVersion/node-$nodejsLatestVersion-win-x64.zip" -OutFile "$toolsInstallDir\nodejs.zip"
+    if (-not (Test-Path -Path "$toolsInstallDir\node-$nodejsLatestVersion-win-x64" -PathType Container)) {
+        Expand-Archive -Path "$toolsInstallDir\nodejs.zip" -DestinationPath $toolsInstallDir
+    }
+    $env:Path += ";$toolsInstallDir\node-$nodejsLatestVersion-win-x64"
+}
+# node and npm version check
+Write-Host "Node.js Version: $nodejsLatestVersion"
 node -v
 npm -v
 
-# Check if Git is installed
-write-host "Installing git"
-if (-not (Command-Exists "git")) {
-    write-host "Command 'git' does not exist"
-    # user scoped installation using winget
-    # winget install --id Git.Git -e --source winget --scope user
-    winget install --id Git.Git -e --source winget
-    # add node on the path
-    $env:PATH += ";$env:C:\Program Files\Git\bin;"
+if (-not (Command-Exists "git version")) {
+    # Download and install Git
+    write-host "Installing git"
+    $gitVersion = '2.42.0.2'
+    Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/download/v2.42.0.windows.2/MinGit-$gitVersion-64-bit.zip" -OutFile "$toolsInstallDir\git.zip"
+    if (-not (Test-Path -Path "$toolsInstallDir\git" -PathType Container)) {
+        Expand-Archive -Path "$toolsInstallDir\git.zip" -DestinationPath "$toolsInstallDir\git"
+    }
+    $env:Path += ";$toolsInstallDir\git\cmd"
 }
 
 # git verification
@@ -92,7 +104,7 @@ if (Test-Path -Path "$expectedFilePath\$oldFileName" -PathType Leaf) {
     Write-Host "The file exists at $absolutePath."
     cd "$workingDir\$resultsFolder"
     # results directory should already exist
-    "pdPath=$absolutePath" | Out-File -FilePath pde2e-builder-results.log
+    "$absolutePath" | Out-File -FilePath pde2e-builder-results.log
 } else {
     Write-Host "The file does not exist."
     cd "$workingDir\$results"

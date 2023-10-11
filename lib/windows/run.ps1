@@ -30,6 +30,9 @@ $userProfile = $env:USERPROFILE
 # Specify the shared tools directory
 $toolsInstallDir = Join-Path $userProfile 'tools'
 
+# Output file for built podman desktop binary
+$outputFile = "pde2e-binary-path.log"
+
 # Create the tools directory if it doesn't exist
 if (-not (Test-Path -Path $toolsInstallDir -PathType Container)) {
     New-Item -Path $toolsInstallDir -ItemType Directory
@@ -40,8 +43,8 @@ if (-not (Command-Exists "node -v")) {
     write-host "Installing node"
     # $nodejsLatestVersion = (Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' | Sort-Object -Property version -Descending)[0].version
     $nodejsLatestVersion = "v18.18.0"
-    Invoke-WebRequest -Uri "https://nodejs.org/dist/$nodejsLatestVersion/node-$nodejsLatestVersion-win-x64.zip" -OutFile "$toolsInstallDir\nodejs.zip"
     if (-not (Test-Path -Path "$toolsInstallDir\node-$nodejsLatestVersion-win-x64" -PathType Container)) {
+        Invoke-WebRequest -Uri "https://nodejs.org/dist/$nodejsLatestVersion/node-$nodejsLatestVersion-win-x64.zip" -OutFile "$toolsInstallDir\nodejs.zip"
         Expand-Archive -Path "$toolsInstallDir\nodejs.zip" -DestinationPath $toolsInstallDir
     }
     $env:Path += ";$toolsInstallDir\node-$nodejsLatestVersion-win-x64"
@@ -92,7 +95,7 @@ write-host "Build a podman desktop on a local machine"
 yarn compile
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
-$expectedFilePath="$workingDir\podman-desktop\dist\win-unpacked\"
+$expectedFilePath="$workingDir\podman-desktop\dist\win-unpacked"
 $oldFileName="Podman Desktop.exe"
 $newFileName="pd.exe"
 # Write down the location of podman desktop executable into a file
@@ -104,10 +107,11 @@ if (Test-Path -Path "$expectedFilePath\$oldFileName" -PathType Leaf) {
     Write-Host "The file exists at $absolutePath."
     cd "$workingDir\$resultsFolder"
     # results directory should already exist
-    "$absolutePath" | Out-File -FilePath pde2e-builder-results.log
+    write-host "Storing information about Podman Desktop executable to the resulting file: $outputFile"
+    "$expectedFilePath" | Out-File -FilePath $outputFile -NoNewline
 } else {
     Write-Host "The file does not exist."
     cd "$workingDir\$results"
-    "Error compiling and building the podman desktop ouptut binary" | Out-File -FilePath pde2e-builder-results.log
+    "Error compiling and building the podman desktop ouptut binary" | Out-File -FilePath $outputFile
 }
 write-host "Script finished..."

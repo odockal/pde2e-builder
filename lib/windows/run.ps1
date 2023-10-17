@@ -90,7 +90,7 @@ git checkout $branch
 
 ## YARN INSTALL AND BUILD PART
 write-host "Installing dependencies"
-yarn install
+yarn --frozen-lockfile --network-timeout 180000
 write-host "Build a podman desktop on a local machine"
 yarn compile
 

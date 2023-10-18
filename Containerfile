@@ -1,4 +1,4 @@
-FROM quay.io/rhqp/deliverest:v0.0.3
+FROM quay.io/rhqp/deliverest:v0.0.4
 
 # Expects one of windows or darwin
 ARG OS=windows

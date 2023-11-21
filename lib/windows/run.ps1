@@ -108,7 +108,7 @@ if (Test-Path -Path "$expectedFilePath\$oldFileName" -PathType Leaf) {
     cd "$workingDir\$resultsFolder"
     # results directory should already exist
     write-host "Storing information about Podman Desktop executable to the resulting file: $outputFile"
-    "$expectedFilePath" | Out-File -FilePath $outputFile -NoNewline
+    "$absolutePath" | Out-File -FilePath $outputFile -NoNewline
 } else {
     Write-Host "The file does not exist."
     cd "$workingDir\$results"

@@ -128,22 +128,22 @@ echo "Yarn Version: $(yarn --version)"
 # clean up previous folder
 if [ -d "podman-desktop" ]; then
     echo "Removing older podman-desktop github repo"
-    #rm -rf "podman-desktop"
+    rm -rf "podman-desktop"
 fi
 
 # Clone the GitHub repository and switch to the specified branch
 repositoryURL="https://github.com/$fork/podman-desktop.git"
 echo "Checking out $repositoryURL"
-#git clone "$repositoryURL"
+git clone "$repositoryURL"
 cd "podman-desktop" || exit
 echo "Checking out branch: $branch"
 git checkout "$branch"
 
 ## YARN INSTALL AND BUILD PART
 echo "Installing dependencies"
-#yarn --frozen-lockfile --network-timeout 180000
+yarn --frozen-lockfile --network-timeout 180000
 echo "Build a podman desktop on a local machine"
-#yarn compile
+yarn compile
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
 expectedFilePath="$workingDir/podman-desktop/dist/mac-$architecture/"

@@ -1,9 +1,10 @@
 FROM quay.io/rhqp/deliverest:v0.0.4
 
-# Expects one of windows or darwin
-ARG OS=windows
+LABEL org.opencontainers.image.authors="Ondrej Dockal<odockal@redhat.com>"
 
- # how about windows path?
+# Expects one of windows or darwin
+ARG OS
+
 ENV ASSETS_FOLDER=/opt/pde2e-builder \
     OS=${OS}
 

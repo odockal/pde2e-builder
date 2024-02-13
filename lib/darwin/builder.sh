@@ -136,6 +136,8 @@ repositoryURL="https://github.com/$fork/podman-desktop.git"
 echo "Checking out $repositoryURL"
 git clone "$repositoryURL"
 cd "podman-desktop" || exit
+# Fetch all so we can either checkout to a branch or tag
+git fetch --all
 echo "Checking out branch: $branch"
 git checkout "$branch"
 

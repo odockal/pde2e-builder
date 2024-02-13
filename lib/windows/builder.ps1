@@ -85,6 +85,9 @@ write-host "Checking out" $repositoryURL
 git clone $repositoryURL
 write-host "checking out into podman-desktop"
 cd podman-desktop
+# Fetch all so we can either checkout to a branch or tag
+write-host "Fetch all refs"
+git fetch --all
 write-host "checking out branch: $branch"
 git checkout $branch
 

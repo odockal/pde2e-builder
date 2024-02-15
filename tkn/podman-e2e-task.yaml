@@ -1,0 +1,251 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: podman-backend-e2e
+  labels:
+    app.kubernetes.io/version: "4.9.2"
+    redhat.com/product: podman-backend
+    dev.lifecycle.io/phase: testing
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.24.x"
+    tekton.dev/categories: podman-backend
+    tekton.dev/tags: podman-backend, testing
+    tekton.dev/displayName: "testing for podman-backend"
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: >-
+    This task will run qe testing on a podman installation where podman functionality is offered through a backend (typically a machine offering a podman socket)
+
+    This task make use of suite of tests from podman and run them on top of installation based on podman backend:
+
+    * podman 
+    * crc-podman 
+    * crc-microshift
+    * crc-openshift
+  
+  params:
+  # Target host params
+  - name: host
+    description: host to connect to the provisioned machine
+  - name: username
+    description: username to connect to the provisioned machine
+  - name: key
+    description: key file name to connect to the provisioned machine within the workspace resources path   
+  - name: workspace-resources-path
+    description: path on workspace to find resources to connect and managed provisioned machine
+  - name: os
+    description: type of platform per target host (linux, windows, macos)
+    default: windows
+  - name: os-version
+    description: version for the target os
+    default: ''
+  - name: arch
+    description: type of arch per target host (linux, windows, macos)
+    default: amd64
+  # Podman params
+  - name: podman-version
+    description: podman version to be tested
+    default: '4.9.2'
+  - name: podman-backend
+    description: |
+      backend providing podman functionality. Allowed values:
+
+        (For podman the behaviour can be controlled within other params as podman-install and podman-start):
+
+        
+
+        (For crc options it is expected crc is already installed on the target):
+
+        * podman
+        * crc-podman 
+        * crc-microshift (This requires set crc-secret param)
+        * crc-openshift (This requires set crc-secret param)
+
+    default: crc-microshift
+  - name: wsl-fix-install
+    description: Check if wsl is installed if not it will install, default false.
+    default: 'false'
+  - name: podman-install
+    description: If podman set as podman-backed in case podman-install true it will download and install podman version from github 
+    default: 'false'
+  - name: podman-start
+    description: If podman set as podman-backed in case podman-start true it will init and start the podman machine
+    default: 'false'
+  - name: podman-provider
+    description: Set the provider to be tested for podman machine
+    default: "''"
+  - name: podman-opts
+    description: Pass podman opts to the execution
+    default: "''" 
+  # Result params
+  - name: worspace-qe-subpath
+    description: subpath relative to workspace path where results are stored
+    default: qe-results
+  - name: junit-filename
+    description: junit results filename
+    default: podman-e2e.xml
+  # Control params
+  - name: debug
+    description: debug purposes extend verbosity on cmds executed on the target
+    default: 'false'
+  - name: cleanup-target
+    description: remove all assets moved into the target host
+    default: 'true'
+
+  results:
+  - name: duration
+    description: total amount of time in seconds for the qe execution
+
+  steps:
+  - name: e2e
+    image: quay.io/rhqp/podman-backend-e2e:v4.9.2-$(params.os)-$(params.arch)
+    imagePullPolicy: Always
+    script: |
+      #!/bin/bash
+
+      set -xuo
+
+      # Prepare ENVs
+      SECONDS=0
+      DEBUG=$(params.debug)
+      TARGET_HOST=$(params.host)
+      TARGET_HOST_USERNAME=$(params.username)
+      TARGET_HOST_KEY_PATH=$(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/$(params.key)
+      chmod 600 ${TARGET_HOST_KEY_PATH}
+      TARGET_FOLDER=podman-backend-e2e
+      TARGET_RESULTS=$(params.junit-filename)
+      TARGET_CLEANUP=$(params.cleanup-target)
+      OUTPUT_FOLDER=$(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/$(params.worspace-qe-subpath)
+      mkdir -p "${OUTPUT_FOLDER}"
+
+      # Pull secret (if exists)
+      if test -f /opt/crc/pullsecret; then
+        # ASSETS_FOLDER ENV is defined at Containerfile
+        # All assets inside that folder will be copied to the target host
+        cp /opt/crc/pullsecret ${ASSETS_FOLDER}
+      fi
+
+      # Create command
+      cmd=""
+
+      case "$(params.os)" in
+        windows)
+          cmd="${TARGET_FOLDER}/run.ps1 -podmanVersion $(params.podman-version) "
+          cmd="$cmd -targetFolder ${TARGET_FOLDER} "
+          cmd="$cmd -junitResultsFilename ${TARGET_RESULTS} "
+          cmd="$cmd -backend $(params.podman-backend) "
+          cmd="$cmd -podmanInstall $(params.podman-install) "
+          cmd="$cmd -podmanStart $(params.podman-start) "
+          cmd="$cmd -wslInstallFix $(param.wsl-fix-install) "
+          cmd="$cmd -pullsecretFilename pullsecret "
+          if [[ $(params.podman-provider) != "" ]]; then
+            cmd="$cmd -podmanProvider $(params.podman-provider) "
+          fi
+          if [[ $(params.podman-opts) != "" ]]; then
+            cmd="$cmd -podmanOpts $(params.podman-opts) "
+          fi
+          ;;
+
+        darwin)
+          cmd="PODMAN_VERSION=$(params.podman-version) "
+          cmd="$cmd TARGET_FOLDER=${TARGET_FOLDER} "
+          cmd="$cmd JUNIT_RESULTS_FILENAME=${TARGET_RESULTS} "
+          cmd="$cmd BACKEND=$(params.podman-backend) "
+          cmd="$cmd PODMAN_INSTALL=$(params.podman-install) "
+          cmd="$cmd PODMAN_START=$(params.podman-start) "
+          cmd="$cmd PULLSECRET_FILENAME=pullsecret "
+          cmd="$cmd ARCH=$(params.arch) "
+          if [[ $(params.podman-provider) != "" ]]; then
+            cmd="$cmd PODMAN_PROVIDER=$(params.podman-provider) "
+          fi
+          if [[ $(params.podman-opts) != "" ]]; then
+            cmd="$cmd PODMAN_OPTS=$(params.podman-opts) "
+          fi
+          cmd="$cmd ${TARGET_FOLDER}/run.sh"
+          ;;
+
+        *)
+          echo "$(params.os) is not supported"
+          exit 1 
+          ;;
+      esac
+      
+      # Exec
+      . entrypoint.sh "${cmd}"
+
+      # Create snapshot with performance metrics during e2e
+      curl -XPOST localhost:9090/api/v1/admin/tsdb/snapshot > snaphost-creation.json
+      # Use jq to get the snapshot compress and change name
+      # https://github.com/adrianriobo/deliverest/issues/26
+      apk add jq 
+      snap_id=$(jq -r '.data.name' snaphost-creation.json)
+      # Check content
+      pushd $(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/tmp-prom-$(params.podman-provider)/snapshots
+      tar -zcvf prom-$(params.podman-provider).tar.gz ${snap_id}
+      cp prom-$(params.podman-provider).tar.gz $(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/$(params.worspace-qe-subpath)
+
+      # Results
+      echo -n "${SECONDS}" | tee $(results.duration.path)
+      
+    resources:      
+      requests:
+        memory: "50Mi"
+        cpu: "5m"
+      limits:
+        memory: "70Mi"
+        cpu: "10m"
+
+  sidecars:
+  - name: performance-db
+    image: quay.io/prometheus/prometheus:v2.45.3
+    script: |
+      #!/bin/sh
+
+      set -exuo
+
+      cat <<EOF > /etc/prometheus/prometheus.yml
+      global:
+        scrape_interval: 15s
+
+      scrape_configs:
+      - job_name: $(params.podman-provider)
+        static_configs:
+        - targets: ['$(params.host):9100']
+          labels:
+            provider: $(params.podman-provider)
+            os: $(params.os) 
+            osversion: $(params.os-version)
+            arch: $(params.arch)
+
+      EOF
+
+      DATA_FOLDER="$(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/tmp-prom-$(params.podman-provider)"
+      mkdir -p "${DATA_FOLDER}"
+
+      # Run prometheus to scrap the metrics while running tests
+      exec prometheus --config.file=/etc/prometheus/prometheus.yml \
+                      --storage.tsdb.path="${DATA_FOLDER}" \
+                      --web.enable-admin-api
+
+    volumeMounts:
+    - name: $(workspaces.pipelines-data.volume)
+      mountPath: $(workspaces.pipelines-data.path)
+
+  workspaces:
+  - name: pipelines-data
+  - name: ocp-pullsecret
+    optional: true
+    description: |
+      crc secret name holding the pullsecret. This is only required if backed tested is crc preset
+
+      secret should match following format:
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ${secret-name}
+      type: Opaque
+      data:
+        pullsecret: ${pullsecret-value}
+    mountPath: /opt/crc

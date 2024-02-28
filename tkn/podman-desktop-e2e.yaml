@@ -2,7 +2,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: pde2e-builder
+  name: podman-desktop-e2e
   labels:
     app.kubernetes.io/version: "0.1"
     redhat.com/product: podman-desktop
@@ -11,11 +11,11 @@ metadata:
     tekton.dev/pipelines.minVersion: "0.24.x"
     tekton.dev/categories: podman-desktop
     tekton.dev/tags: podman-desktop, testing
-    tekton.dev/displayName: "Podman Desktop Building task"
+    tekton.dev/displayName: "testing for podman-backend"
     tekton.dev/platforms: "linux/amd64"
 spec:
   description: >-
-    This task will prepare the dependencies and build the podman desktop locally
+    This task will run qe testing on podman desktop 
 
   workspaces:
   - name: pipelines-data
@@ -38,23 +38,23 @@ spec:
     default: amd64
   - name: workspace-resources-path
     description: path on workspace to find resources to connect to the target machine
-  # PDE2E Builder parameters
-  - name: image-version
-    description: pde2e-builder image version
-    default: '0.0.1'
-  - name: fork
-    description: Podman Desktop repo fork
-    default: 'containers'
-  - name: branch
-    description: Podman Desktop repository branch or tag to checkout
-    default: 'main'
-  # Results parameters
+  # Podman desktop parameters
+  - name: podman-desktop-version
+    description: podman version to be tested
+    default: '1.1.0'
+  - name: pd-url
+    description: in case we want to download a specific podman desktop version. We can set up the url
+    default: "''"
+  - name: pd-path
+    description: in case we want to test an existing version on the target host we can set up the path here
+    default: "''"
+  # Results parameters 
   - name: worspace-qe-subpath
     description: subpath relative to workspace path where results are stored
     default: qe-results
-  - name: results-folder
+  - name: junit-filename
     description: filename for the junit file holding the e2e results
-    default: results
+    default: podman-desktop-e2e.xml
   # Control params
   - name: target-cleanup
     description: 'this param controls if folder on target host will be removed. Defaults true'
@@ -66,41 +66,46 @@ spec:
 
   steps:
   - name: e2e
-    image: quay.io/odockal/pde2e-builder:v$(params.image-version)-$(params.os)
+    image: quay.io/rhqp/podman-desktop-e2e:v$(params.podman-desktop-version)-$(params.os)-$(params.arch)
     # We do not have a strict control on versions (as so they can be override)
     # force here to pull everytime just in case it is overriden
     imagePullPolicy: Always
     script: |
       #!/bin/bash
 
-      # This is kept the same as in other tasks
       # Prepare ENVs
       SECONDS=0
       TARGET_HOST=$(params.host)
       TARGET_HOST_USERNAME=$(params.username)
       TARGET_HOST_KEY_PATH=$(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/$(params.key)
       chmod 600 ${TARGET_HOST_KEY_PATH}
-      TARGET_FOLDER=pd-e2e
-      TARGET_RESULTS=$(params.results-folder)
+      TARGET_FOLDER=podman-desktop-e2e
+      TARGET_RESULTS=$(params.junit-filename)
       TARGET_CLEANUP=$(params.target-cleanup)
       OUTPUT_FOLDER=$(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/$(params.worspace-qe-subpath)
       mkdir -p "${OUTPUT_FOLDER}"
       
-      # Create command - command to sbustitue from GHA workflow using images
+      # Create command
       if [[ $(params.os) == "windows" ]]; then
-        cmd="${TARGET_FOLDER}/builder.ps1 "
+        cmd="${TARGET_FOLDER}/run.ps1 "
         cmd="$cmd -targetFolder ${TARGET_FOLDER} "
-        cmd="$cmd -resultsFolder ${TARGET_RESULTS} "
-        cmd="$cmd -fork $(params.fork) "
-        cmd="$cmd -branch $(params.branch)"
+        cmd="$cmd -junitResultsFilename $(params.junit-filename) "
+        if [[ $(params.pd-url) != "" ]]; then
+          cmd="${cmd} -pdUrl $(params.pd-url) "
+        else 
+          cmd="${cmd} -pdPath $(params.pd-path) "
+        fi
       fi
       if [[ $(params.os) == "darwin" ]]; then
-        cmd="${TARGET_FOLDER}/builder.sh "
-        cmd="$cmd --targetFolder ${TARGET_FOLDER} "
-        cmd="$cmd --resultsFolder ${TARGET_RESULTS} "
-        cmd="$cmd --fork $(params.fork) "
-        cmd="$cmd --branch $(params.branch)" 
-        
+        cmd="USER_PASSWORD=$(params.userpassword) "
+        cmd="$cmd TARGET_FOLDER=${TARGET_FOLDER} "
+        cmd="$cmd JUNIT_RESULTS_FILENAME=$(params.junit-filename) "
+        if [[ $(params.pd-url) != "" ]]; then
+          cmd="${cmd} PD_URL=$(params.pd-url) "
+        else 
+          cmd="${cmd} PD_PATH=$(params.pd-path) "
+        fi
+        cmd="$cmd ${TARGET_FOLDER}/run.sh"
       fi
       
       # Exec

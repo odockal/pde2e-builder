@@ -9,6 +9,10 @@ param(
     [string]$branch = "main"
 )
 
+# Program Versions
+$nodejsLatestVersion = "v20.11.1"
+$gitVersion = '2.42.0.2'
+
 # Function to check if a command is available
 function Command-Exists($command) {
     $null = Get-Command -Name $command -ErrorAction SilentlyContinue
@@ -42,7 +46,6 @@ if (-not (Command-Exists "node -v")) {
     # Download and install the latest version of Node.js
     write-host "Installing node"
     # $nodejsLatestVersion = (Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' | Sort-Object -Property version -Descending)[0].version
-    $nodejsLatestVersion = "v18.18.0"
     if (-not (Test-Path -Path "$toolsInstallDir\node-$nodejsLatestVersion-win-x64" -PathType Container)) {
         Invoke-WebRequest -Uri "https://nodejs.org/dist/$nodejsLatestVersion/node-$nodejsLatestVersion-win-x64.zip" -OutFile "$toolsInstallDir\nodejs.zip"
         Expand-Archive -Path "$toolsInstallDir\nodejs.zip" -DestinationPath $toolsInstallDir
@@ -57,7 +60,6 @@ npm -v
 if (-not (Command-Exists "git version")) {
     # Download and install Git
     write-host "Installing git"
-    $gitVersion = '2.42.0.2'
     Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/download/v2.42.0.windows.2/MinGit-$gitVersion-64-bit.zip" -OutFile "$toolsInstallDir\git.zip"
     if (-not (Test-Path -Path "$toolsInstallDir\git" -PathType Container)) {
         Expand-Archive -Path "$toolsInstallDir\git.zip" -DestinationPath "$toolsInstallDir\git"

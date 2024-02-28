@@ -6,7 +6,7 @@ fork="containers"
 branch="main"
 
 # Version variables
-nodeVersion="v18.19.0"
+nodeVersion="v20.11.1"
 gitVersion="2.42.0"
 
 while [[ $# -gt 0 ]]; do

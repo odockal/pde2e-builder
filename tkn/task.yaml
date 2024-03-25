@@ -49,7 +49,7 @@ spec:
     description: Podman Desktop repository branch or tag to checkout
     default: 'main'
   # Results parameters
-  - name: worspace-qe-subpath
+  - name: workspace-qe-subpath
     description: subpath relative to workspace path where results are stored
     default: qe-results
   - name: results-folder
@@ -58,11 +58,16 @@ spec:
   # Control params
   - name: target-cleanup
     description: 'this param controls if folder on target host will be removed. Defaults true'
-    deafult: 'true'
+    default: 'true'
+  - name: debug
+    description: debug purposes extend verbosity on cmds executed on the target
+    default: 'false'
 
   results:
   - name: duration
     description: total amount of time in seconds for the qe execution
+  - name: pd-path
+    description: a path to the built podman desktop app
 
   steps:
   - name: e2e
@@ -83,7 +88,7 @@ spec:
       TARGET_FOLDER=pd-e2e
       TARGET_RESULTS=$(params.results-folder)
       TARGET_CLEANUP=$(params.target-cleanup)
-      OUTPUT_FOLDER=$(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/$(params.worspace-qe-subpath)
+      OUTPUT_FOLDER=$(workspaces.pipelines-data.path)/$(params.workspace-resources-path)/$(params.workspace-qe-subpath)
       mkdir -p "${OUTPUT_FOLDER}"
       
       # Create command - command to sbustitue from GHA workflow using images
@@ -108,6 +113,9 @@ spec:
 
       # Results
       echo -n "${SECONDS}" | tee $(results.duration.path)
+      # use this example to fill the value of the pd-path into results
+      ls -R ${OUTPUT_FOLDER}
+      echo -n "$(cat ${OUTPUT_FOLDER}/${TARGET_RESULTS}/pde2e-binary-path.log)" | tee $(results.pd-path.path)
       
     resources:      
       requests:

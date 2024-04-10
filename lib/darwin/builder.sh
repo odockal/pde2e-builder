@@ -149,20 +149,17 @@ yarn compile
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
 expectedFilePath="$workingDir/podman-desktop/dist/mac-$architecture/"
-appName="Podman Desktop.app"
-oldFileName="Podman Desktop"
-newFileName="podman-desktop"
-oldBinaryPath="$expectedFilePath/$appName/Contents/MacOS/"
+oldFileName="Podman Desktop.app"
+newFileName="pd.app"
 # Write down the location of podman desktop executable into a file
-if [ -d "$oldBinaryPath/$oldFileName" ]; then
+if [ -d "$expectedFilePath/$oldFileName" ]; then
     # Rename the file
-    mv "$oldBinaryPath/$oldFileName" "$oldBinaryPath/$newFileName"
-    echo "The Binary file has been renamed to $newFileName."
-    echo "Move/cp the binary to the workingDir: $workingDir"
-    cp "$oldBinaryPath/$newFileName" "$workingDir"
-    # Get the absolute path of the binary
-    absolutePath=$(realpath "$workingDir/$newFileName")  
+    mv "$expectedFilePath/$oldFileName" "$expectedFilePath/$newFileName"
+    echo "The file has been renamed to $newFileName."
+    absolutePath=$(realpath "$expectedFilePath/$newFileName")  # Get the absolute path
     echo "The file exists at $absolutePath."
+    echo "Re-signing the app so we can open it on the lab machine"
+    codesign --force --deep --sign - $absolutePath
     cd "$workingDir/$resultsFolder" || exit
     # results directory should already exist
     echo "Storing information about Podman Desktop executable to the resulting file: $outputFile"

@@ -119,10 +119,10 @@ fi
 # git verification
 git --version
 
-# Install Yarn
-echo "Installing yarn"
-npm install -g yarn
-echo "Yarn Version: $(yarn --version)"
+# Install pnpm
+echo "Installing pnpm"
+sudo npm install -g pnpm
+echo "pnpm Version: $(pnpm --version)"
 
 # GIT clone and checkout part
 # clean up previous folder
@@ -141,11 +141,11 @@ git fetch --all
 echo "Checking out branch: $branch"
 git checkout "$branch"
 
-## YARN INSTALL AND BUILD PART
+## Pnpm INSTALL AND BUILD PART
 echo "Installing dependencies"
-yarn --frozen-lockfile --network-timeout 180000
+pnpm install --frozen-lockfile
 echo "Build a podman desktop on a local machine"
-yarn compile
+pnpm compile
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
 expectedFilePath="$workingDir/podman-desktop/dist/mac-$architecture/"

@@ -83,10 +83,10 @@ if (-not (Command-Exists "git version")) {
 # git verification
 git.exe version
 
-# Install Yarn
-write-host "Installing yarn"
-npm install -g yarn
-yarn --version
+# Install pnpm
+write-host "Installing pnpm"
+npm install -g pnpm
+pnpm --version
 
 # GIT clone and checkout part
 # clean up previous folder
@@ -106,11 +106,11 @@ git fetch --all
 write-host "checking out branch: $branch"
 git checkout $branch
 
-## YARN INSTALL AND BUILD PART
+## Pnpm INSTALL AND BUILD PART
 write-host "Installing dependencies"
-yarn --frozen-lockfile --network-timeout 180000
+pnpm install --frozen-lockfile
 write-host "Build a podman desktop on a local machine"
-yarn compile
+pnpm compile
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
 $expectedFilePath="$workingDir\podman-desktop\dist\win-unpacked"

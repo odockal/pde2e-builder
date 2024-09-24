@@ -19,6 +19,98 @@ function Command-Exists($command) {
     return $?
 }
 
+function Invoke-Admin-Command {
+    param (
+        [string]$Command,            # Command to run (e.g., "pnpm install")
+        [string]$WorkingDirectory,   # Working directory where the command should be executed
+        [string]$TargetFolder,       # Target directory for storing the output/log files
+        [string]$EnvVarName="",      # Environment variable name (optional)
+        [string]$EnvVarValue="",     # Environment variable value (optional)
+        [string]$Privileged='0'      # Whether to run command with admin rights, defaults to user mode
+    )
+
+    cd $WorkingDirectory
+    # Define file paths to capture output and error
+    $outputFile = Join-Path -Path $WorkingDirectory -ChildPath "tmp_stdout_$([System.Datetime]::Now.ToString("yyyymmdd_HHmmss")).txt"
+    $errorFile = Join-Path -Path $WorkingDirectory -ChildPath "tmp_stderr_$([System.Datetime]::Now.ToString("yyyymmdd_HHmmss")).txt"
+    $tempScriptFile = Join-Path -Path $WorkingDirectory -ChildPath "tmp_script_$([System.Datetime]::Now.ToString("yyyymmdd_HHmmss")).ps1"
+
+    # We need to create a local tmp script in order to execute it with admin rights with a Start-Process
+    # We also want a access to the stdout and stderr which is not possible otherwise
+    if ($Privileged -eq "1") {
+        # Create the temporary script content
+        $scriptContent = @"
+# Change to the working directory
+Set-Location -Path '$WorkingDirectory'
+
+"@
+        # If the environment variable name and value are provided, add to script
+        if (![string]::IsNullOrWhiteSpace($EnvVarName) -and ![string]::IsNullOrWhiteSpace($EnvVarValue)) {
+            $scriptContent += @"
+# Set the environment variable
+Set-Item -Path Env:\$EnvVarName -Value '$EnvVarValue'
+
+"@
+        }
+        # Add the command execution to the script
+        $scriptContent += @"
+# Run the command and redirect stdout and stderr
+# Try running the command and capture errors
+try {
+    'Executing Command: $Command' | Out-File '$outputFile' -Append
+    $Command >> '$outputFile' 2>> '$errorFile'
+    'Command executed successfully.' | Out-File '$outputFile' -Append
+} catch {
+    'Error occurred while executing command: ' + `$_.Exception.Message | Out-File '$errorFile' -Append
+}
+"@
+        # Write the script content to the temporary script file
+        write-host "Creating a content of the script:"
+        write-host "$scriptContent"
+        write-host "Storing at: $tempScriptFile"
+        $scriptContent | Set-Content -Path $tempScriptFile
+
+        # Start the process as admin and run the temporary script file
+        write-host "Starting process with script"
+        $process = Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy Bypass", "-File", $tempScriptFile -Verb RunAs -Wait
+        if ($process.ExitCode -eq 0) {
+            Write-Host "Process completed successfully."
+            Write-Host "Process ID: $($process.Id)"
+        } else {
+            Write-Host "Process failed with exit code: $($process.ExitCode)"
+        }
+
+    } else {
+        cd $WorkingDirectory
+        # Run the command normally without elevated privileges
+        if (![string]::IsNullOrWhiteSpace($EnvVarName) -and ![string]::IsNullOrWhiteSpace($EnvVarValue)) {
+            "Settings Env. Var.: $EnvVarName = $EnvVarValue" | Out-File $outputFile -Append
+            Set-Item -Path Env:\$EnvVarName -Value $EnvVarValue
+        }
+        Set-Location -Path '$WorkingDirectory'
+        "Running the command: '$Command' in non privileged mode" | Out-File $outputFile -Append
+        $output = Invoke-Expression $Command >> $outputFile 2>> $errorFile
+    }
+
+    # Copying logs and scripts back to the target folder (to get preserved and copied to the host)
+    Copy-Item -Path $tempScriptFile -Destination $TargetFolder
+    Copy-Item -Path $outputFile -Destination $TargetFolder
+    Copy-Item -Path $errorFile -Destination $TargetFolder
+
+    # After the process finishes, read the output and error from the files
+    if (Test-Path $outputFile) {
+        Write-Output "Standard Output: $(Get-Content -Path $outputFile)"
+    } else {
+        Write-Output "No standard output..."
+    }
+
+    if (Test-Path $errorFile) {
+        Write-Output "Standard Error: $(Get-Content -Path $errorFile)"
+    } else {
+        Write-Output "No standard error..."
+    }
+}
+
 Write-Host "Podman desktop E2E builder script is being run..."
 
 write-host "Switching to a target folder: " $targetFolder
@@ -27,6 +119,7 @@ write-host "Create a resultsFolder in targetFolder: $resultsFolder"
 mkdir $resultsFolder
 $workingDir=Get-Location
 write-host "Working location: " $workingDir
+$targetLocation="$workingDir\$resultsFolder"
 
 # Specify the user profile directory
 $userProfile = $env:USERPROFILE
@@ -63,7 +156,13 @@ if (-not (Command-Exists "node -v")) {
         Invoke-WebRequest -Uri "https://nodejs.org/dist/$nodejsLatestVersion/node-$nodejsLatestVersion-win-x64.zip" -OutFile "$toolsInstallDir\nodejs.zip"
         Expand-Archive -Path "$toolsInstallDir\nodejs.zip" -DestinationPath $toolsInstallDir
     }
-    $env:Path += ";$toolsInstallDir\node-$nodejsLatestVersion-win-x64"
+    # we need to set node for local access in actually running script
+    $env:Path += ";$toolsInstallDir\node-$nodejsLatestVersion-win-x64\"
+    # Setting node to be available for the machine scope
+    # requires admin access
+    $command="[Environment]::SetEnvironmentVariable('Path', (`$Env:Path + ';$toolsInstallDir\node-$nodejsLatestVersion-win-x64\'), 'MACHINE')"
+    Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy Bypass", "-Command $command" -Verb RunAs -Wait
+    write-host "$([Environment]::GetEnvironmentVariable('Path', 'MACHINE'))"
 }
 # node and npm version check
 Write-Host "Node.js Version: $nodejsLatestVersion"
@@ -107,10 +206,13 @@ write-host "checking out branch: $branch"
 git checkout $branch
 
 ## Pnpm INSTALL AND BUILD PART
+$thisDir=Get-Location
 write-host "Installing dependencies"
-pnpm install --frozen-lockfile
-write-host "Build a podman desktop on a local machine"
-pnpm compile
+write-host "Calling: Invoke-Admin-Command -Command 'pnpm install --frozen-lockfile' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocation"
+Invoke-Admin-Command -Command "pnpm install --frozen-lockfile" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocation
+write-host "Build/Compile a podman desktop on a local machine"
+write-host "Calling: Invoke-Admin-Command -Command 'pnpm compile' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocation"
+Invoke-Admin-Command -Command "pnpm compile" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocation
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
 $expectedFilePath="$workingDir\podman-desktop\dist\win-unpacked"
@@ -129,7 +231,7 @@ if (Test-Path -Path "$expectedFilePath\$oldFileName" -PathType Leaf) {
     "$absolutePath" | Out-File -FilePath $outputFile -NoNewline
 } else {
     Write-Host "The file does not exist."
-    cd "$workingDir\$results"
-    "Error compiling and building the podman desktop ouptut binary" | Out-File -FilePath $outputFile
+    cd "$workingDir\$resultsFolder"
+    "Error compiling and building the podman desktop output binary" | Out-File -FilePath $outputFile
 }
 write-host "Script finished..."

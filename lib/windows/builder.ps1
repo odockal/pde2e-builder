@@ -26,7 +26,9 @@ function Invoke-Admin-Command {
         [string]$TargetFolder,       # Target directory for storing the output/log files
         [string]$EnvVarName="",      # Environment variable name (optional)
         [string]$EnvVarValue="",     # Environment variable value (optional)
-        [string]$Privileged='0'      # Whether to run command with admin rights, defaults to user mode
+        [string]$Privileged='0',     # Whether to run command with admin rights, defaults to user mode,
+        [int]$WaitTimeout=300,     # Default WaitTimeout 300 s, defines the timeout to wait for command execute
+        [bool]$WaitForCommand=$true  # Wait for command execution indefinitely, default true, use timeout otherwise
     )
 
     cd $WorkingDirectory
@@ -71,13 +73,20 @@ try {
         $scriptContent | Set-Content -Path $tempScriptFile
 
         # Start the process as admin and run the temporary script file
-        write-host "Starting process with script"
-        $process = Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy Bypass", "-File", $tempScriptFile -Verb RunAs -Wait
-        if ($process.ExitCode -eq 0) {
-            Write-Host "Process completed successfully."
-            Write-Host "Process ID: $($process.Id)"
+        $process = Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy Bypass", "-File", $tempScriptFile -Verb RunAs -PassThru
+        $waitResult = $null
+        if ($WaitForCommand) {
+            write-host "Starting process with script awaiting until it is finished..."
+            $waitResult = $process.WaitForExit()
         } else {
-            Write-Host "Process failed with exit code: $($process.ExitCode)"
+            write-host "Starting process with script awaiting for $WaitTimeout sec"
+            $waitResult = $process.WaitForExit($WaitTimeout * 1000)
+        }
+        Write-Host "Process ID: $($process.Id)"
+        if ($waitResult) {
+            Write-Host "Process completed waiting successfully."
+        } else {
+            Write-Host "Process failed waiting after with exit code: $($process.ExitCode)"
         }
 
     } else {

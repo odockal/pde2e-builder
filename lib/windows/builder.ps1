@@ -6,17 +6,57 @@ param(
     [Parameter(HelpMessage = 'Fork')]
     [string]$fork = "containers",
     [Parameter(HelpMessage = 'Branch')]
-    [string]$branch = "main"
+    [string]$branch = "main",
+    [Parameter(HelpMessage = 'Npm Target command')]
+    [string[]]$pnpmCommand = "pnpm compile",
+    [Parameter(HelpMessage = 'Environmental variables to be passed from the CI into a script, tests parameterization')]
+    [string]$envVars=''
 )
 
 # Program Versions
 $nodejsLatestVersion = "v20.11.1"
 $gitVersion = '2.42.0.2'
 
+# Global variables
+$global:scriptEnvVars = @()
+$global:envVarDefs = @()
+
 # Function to check if a command is available
 function Command-Exists($command) {
     $null = Get-Command -Name $command -ErrorAction SilentlyContinue
     return $?
+}
+
+# Loading variables as env. var from the CI into image
+function Load-Variables() {
+    Write-Host "Loading Variables passed into image"
+    Write-Host "Input String: '$envVars'"
+    # Check if the input string is not null or empty
+    if (-not [string]::IsNullOrWhiteSpace($envVars)) {
+        # Split the input using comma separator
+        $variables = $envVars -split ','
+
+        foreach ($variable in $variables) {
+            # Split each variable definition
+            $global:envVarDefs += $variable
+            $parts = $variable -split '=', 2
+            Write-Host "Processing $variable"
+
+            # Check if the variable assignment is in VAR=Value format
+            if ($parts.Count -eq 2) {
+                $name = $parts[0].Trim()
+                $value = $parts[1].Trim('"')
+
+                # Set and test the environment variable
+                Set-Item -Path "env:$name" -Value $value
+                $global:scriptEnvVars += $name
+            } else {
+                Write-Host "Invalid variable assignment: $variable"
+            }
+        }
+    } else {
+        Write-Host "Input string is empty."
+    }
 }
 
 function Invoke-Admin-Command {
@@ -51,9 +91,33 @@ Set-Location -Path '$WorkingDirectory'
             $scriptContent += @"
 # Set the environment variable
 Set-Item -Path Env:\$EnvVarName -Value '$EnvVarValue'
-
 "@
         }
+        
+        # If we have a set of env. vars. provided, add this code to script
+        if (![string]::IsNullOrWhiteSpace($global:envVarDefs) -and ![string]::IsNullOrWhiteSpace($global:envVarDefs)) {
+            Write-Host "Parsing Global Input env. vars in inline script: '$global:envVarDefs'"
+            foreach ($definition in $global:envVarDefs) {
+                # Split each variable definition
+                Write-Host "Processing $definition"
+                $parts = $definition -split '=', 2
+
+                # Check if the variable assignment is in VAR=Value format
+                if ($parts.Count -eq 2) {
+                    $name = $parts[0].Trim()
+                    $value = $parts[1].Trim('"')
+
+                    # Set and test the environment variable
+                    $scriptContent += @"
+# Set the environment variable from array
+Set-Item -Path Env:\$name -Value '$value'
+"@
+                } else {
+                    Write-Host "Invalid variable assignment: $definition"
+                }
+            }
+        }
+
         # Add the command execution to the script
         $scriptContent += @"
 # Run the command and redirect stdout and stderr
@@ -144,6 +208,9 @@ if (-not (Test-Path -Path $toolsInstallDir -PathType Container)) {
     New-Item -Path $toolsInstallDir -ItemType Directory
 }
 
+# load variables
+Load-Variables
+
 # Install VC Redistributable
 write-host "Install VC_Redistributable"
 if (-not (Test-Path -Path "$toolsInstallDir\vc_redist.x64.exe" -PathType Container)) {
@@ -220,8 +287,8 @@ write-host "Installing dependencies"
 write-host "Calling: Invoke-Admin-Command -Command 'pnpm install --frozen-lockfile' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocation"
 Invoke-Admin-Command -Command "pnpm install --frozen-lockfile" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocation
 write-host "Build/Compile a podman desktop on a local machine"
-write-host "Calling: Invoke-Admin-Command -Command 'pnpm compile' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocation"
-Invoke-Admin-Command -Command "pnpm compile" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocation
+write-host "Calling: Invoke-Admin-Command -Command '$pnpmCommand' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocation"
+Invoke-Admin-Command -Command "$pnpmCommand" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocation
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
 $expectedFilePath="$workingDir\podman-desktop\dist\win-unpacked"

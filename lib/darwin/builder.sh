@@ -4,6 +4,8 @@ targetFolder=""
 resultsFolder="results"
 fork="containers"
 branch="main"
+envVars=""
+pnpmCommand="compile"
 
 # Version variables
 nodeVersion="v20.11.1"
@@ -33,11 +35,48 @@ while [[ $# -gt 0 ]]; do
         shift # past argument
         shift # past value
         ;;
+        -e|--envVars)
+        envVars="$2"
+        shift
+        ;;
+        -c|--pnpmCommand)
+        pnpmCommand="$2"
+        shift
+        ;;
         *)    # unknown option
         shift # past argument
         ;;
     esac
 done
+
+# Create a env. vars from a string: VAR=VAL,VAR2=VAL
+function load_variables() {
+    echo "Loading Variables passed into image"
+    echo "Env. Vars String: '$envVars'"
+    # Check if the input string is not null or empty
+    if [ -n "$envVars" ]; then
+        # use input field separator
+        IFS=',' read -ra VARIABLES <<< "$envVars"
+
+        for var in "${VARIABLES[@]}"; do
+            echo "Processing $var"
+            # Split each variable definition
+            IFS='=' read -r name value <<< "$var"
+
+            # Check if the variable assignment is in VAR=Value format
+            if [ -n "$value" ]; then
+                # Set the environment variable
+                export "$name"="$value"
+                newValue="${!name}"
+                script_env_vars+=("$name")
+            else
+                echo "Invalid variable assignment: $variable"
+            fi
+        done
+    else
+        echo "Input string is empty."
+    fi
+}
 
 if [ -z "$targetFolder" ]; then
     echo "Error: targetFolder is required"
@@ -63,6 +102,9 @@ outputFile="pde2e-binary-path.log"
 
 # Determine the system's arch
 architecture=$(uname -m)
+
+# Loading env. vars
+load_variables
 
 # Create the tools directory if it doesn't exist
 if [ ! -d "$toolsInstallDir" ]; then
@@ -144,8 +186,8 @@ git checkout "$branch"
 ## Pnpm INSTALL AND BUILD PART
 echo "Installing dependencies"
 pnpm install --frozen-lockfile
-echo "Build a podman desktop on a local machine"
-pnpm compile
+echo "Building/compiling a podman desktop on a local machine with pnpm $pnpmCommand"
+pnpm $pnpmCommand
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
 expectedFilePath="$workingDir/podman-desktop/dist/mac-$architecture/"
@@ -169,4 +211,9 @@ else
     cd "$workingDir/$results" || exit
     echo "Error compiling and building the podman desktop output binary" > "$outputFile"
 fi
+
+# Cleaning up, env vars - secrets
+echo "Cleaning the host"
+unset "${script_env_vars[@]}"
+
 echo "Script finished..."

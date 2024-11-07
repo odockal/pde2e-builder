@@ -10,7 +10,7 @@ param(
     [Parameter(HelpMessage = 'Npm Target command')]
     [string[]]$pnpmCommand = "pnpm compile",
     [Parameter(HelpMessage = 'Environmental variables to be passed from the CI into a script, tests parameterization')]
-    [string]$envVars=''
+    $envVars=''
 )
 
 # Program Versions

@@ -2,7 +2,7 @@
 
 targetFolder=""
 resultsFolder="results"
-fork="containers"
+fork="podman-desktop"
 branch="main"
 envVars=""
 pnpmCommand="compile"

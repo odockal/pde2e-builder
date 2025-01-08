@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory,HelpMessage='Results folder')]
     $resultsFolder="results",
     [Parameter(HelpMessage = 'Fork')]
-    [string]$fork = "containers",
+    [string]$fork = "podman-desktop",
     [Parameter(HelpMessage = 'Branch')]
     [string]$branch = "main",
     [Parameter(HelpMessage = 'Npm Target command')]

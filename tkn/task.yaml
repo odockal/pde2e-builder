@@ -44,7 +44,7 @@ spec:
     default: '0.0.1'
   - name: fork
     description: Podman Desktop repo fork
-    default: 'containers'
+    default: 'podman-desktop'
   - name: branch
     description: Podman Desktop repository branch or tag to checkout
     default: 'main'

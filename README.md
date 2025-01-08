@@ -28,6 +28,8 @@ podman run -d --name pde2e-builder-run \
                 -resultsFolder results \
                 -fork containers \
                 -branch main \
+                -envVars 'TEST=true,XY=1' \
+                -pnpmCommand 'pnpm compile'
 
 # Running the image built for Mac OS
 podman run --rm -d --name pde2e-builder-run \
@@ -45,7 +47,9 @@ podman run --rm -d --name pde2e-builder-run \
                 --targetFolder pd-e2e \
                 --resultsFolder results \
                 --fork containers \
-                --branch main
+                --branch main \
+                --envVars 'TEST=true,XY=1' \
+                --pnpmCommand 'compile:current'
 ```
 
 ## Get the image logs

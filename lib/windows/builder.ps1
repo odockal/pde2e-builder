@@ -67,6 +67,7 @@ function Invoke-Admin-Command {
         [string]$EnvVarName="",      # Environment variable name (optional)
         [string]$EnvVarValue="",     # Environment variable value (optional)
         [string]$Privileged='0',     # Whether to run command with admin rights, defaults to user mode,
+        [string]$SetSecrets='0',     # Whether to process secret file and load it as env. vars., only in privileged mode,
         [int]$WaitTimeout=300,     # Default WaitTimeout 300 s, defines the timeout to wait for command execute
         [bool]$WaitForCommand=$true  # Wait for command execution indefinitely, default true, use timeout otherwise
     )
@@ -95,7 +96,7 @@ Set-Item -Path Env:\$EnvVarName -Value '$EnvVarValue'
         }
         
         # If we have a set of env. vars. provided, add this code to script
-        if (![string]::IsNullOrWhiteSpace($global:envVarDefs) -and ![string]::IsNullOrWhiteSpace($global:envVarDefs)) {
+        if (![string]::IsNullOrWhiteSpace($global:envVarDefs)) {
             Write-Host "Parsing Global Input env. vars in inline script: '$global:envVarDefs'"
             foreach ($definition in $global:envVarDefs) {
                 # Split each variable definition
@@ -111,10 +112,42 @@ Set-Item -Path Env:\$EnvVarName -Value '$EnvVarValue'
                     $scriptContent += @"
 # Set the environment variable from array
 Set-Item -Path Env:\$name -Value '$value'
+
 "@
                 } else {
                     Write-Host "Invalid variable assignment: $definition"
                 }
+            }
+        }
+
+        # Add secrets handling into tmp script
+        if ($SetSecrets -eq "1") {
+            Write-Host "SetSecrets flag is set"
+            if ($secretFile) {
+                Write-Host "SecretFile is defined and found..."
+$scriptContent += @"
+`$secretFilePath="$resourcesPath\$secretFile"
+if (Test-Path `$secretFilePath) {
+    `$properties = Get-Content `$secretFilePath | ForEach-Object {
+        # Ignore comments and empty lines
+        if (-not `$_.StartsWith("#") -and -not [string]::IsNullOrWhiteSpace(`$_)) {
+            # Split each line into key-value pairs
+            `$key, `$value = `$_ -split '=', 2
+
+            # Trim leading and trailing whitespaces
+            `$key = `$key.Trim()
+            `$value = `$value.Trim()
+
+            # Set the environment variable
+            Set-Item -Path "env:`$key" -Value `$value
+        }
+    }
+    Write-Host "Secrets loaded from '`$secretFilePath' and set as environment variables."
+} else {
+    Write-Host "File '`$secretFilePath' not found."
+}
+
+"@
             }
         }
 
@@ -129,6 +162,7 @@ try {
 } catch {
     'Error occurred while executing command: ' + `$_.Exception.Message | Out-File '$errorFile' -Append
 }
+
 "@
         # Write the script content to the temporary script file
         write-host "Creating a content of the script:"
@@ -166,9 +200,9 @@ try {
     }
 
     # Copying logs and scripts back to the target folder (to get preserved and copied to the host)
-    Copy-Item -Path $tempScriptFile -Destination $TargetFolder
-    Copy-Item -Path $outputFile -Destination $TargetFolder
-    Copy-Item -Path $errorFile -Destination $TargetFolder
+    cp $tempScriptFile $TargetFolder
+    cp $outputFile $TargetFolder
+    cp $errorFile $TargetFolder
 
     # After the process finishes, read the output and error from the files
     if (Test-Path $outputFile) {
@@ -202,6 +236,10 @@ $toolsInstallDir = Join-Path $userProfile 'tools'
 
 # Output file for built podman desktop binary
 $outputFile = "pde2e-binary-path.log"
+
+# define targetLocationTmpScp for temporary script files
+$targetLocationTmpScp="$targetLocation\scripts"
+New-Item -ErrorAction Ignore -ItemType directory -Path $targetLocationTmpScp
 
 # Create the tools directory if it doesn't exist
 if (-not (Test-Path -Path $toolsInstallDir -PathType Container)) {
@@ -284,11 +322,11 @@ git checkout $branch
 ## Pnpm INSTALL AND BUILD PART
 $thisDir=Get-Location
 write-host "Installing dependencies"
-write-host "Calling: Invoke-Admin-Command -Command 'pnpm install --frozen-lockfile' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocation"
-Invoke-Admin-Command -Command "pnpm install --frozen-lockfile" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocation
+write-host "Calling: Invoke-Admin-Command -Command 'pnpm install --frozen-lockfile' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocationTmpScp"
+Invoke-Admin-Command -Command "pnpm install --frozen-lockfile" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocationTmpScp
 write-host "Build/Compile a podman desktop on a local machine"
-write-host "Calling: Invoke-Admin-Command -Command '$pnpmCommand' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocation"
-Invoke-Admin-Command -Command "$pnpmCommand" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocation
+write-host "Calling: Invoke-Admin-Command -Command '$pnpmCommand' -WorkingDirectory $thisDir -Privileged '1' -TargetFolder $targetLocationTmpScp"
+Invoke-Admin-Command -Command "$pnpmCommand" -WorkingDirectory $thisDir -Privileged "1" -TargetFolder $targetLocationTmpScp
 
 # If all went well, there should be a podman desktop executable "Podman Desktop.exe" in dist/win-unpacked/
 $expectedFilePath="$workingDir\podman-desktop\dist\win-unpacked"

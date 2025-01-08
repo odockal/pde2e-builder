@@ -1,4 +1,4 @@
-VERSION ?= 0.0.2
+VERSION ?= 0.0.3
 CONTAINER_MANAGER ?= podman
 IMG ?= quay.io/odockal/pde2e-builder:v${VERSION}
 TKN_IMG ?= quay.io/odockal/pde2e-builder-tkn:v${VERSION}

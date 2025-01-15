@@ -48,6 +48,12 @@ spec:
   - name: branch
     description: Podman Desktop repository branch or tag to checkout
     default: 'main'
+  - name: env-vars
+    description: Env. vars to pass into tekton task
+    default: '""'
+  - name: pnpm-command
+    description: pnpm (command on windows - pnpm compile), (target on mac - compile)
+    default: 'compile'
   # Results parameters
   - name: workspace-qe-subpath
     description: subpath relative to workspace path where results are stored
@@ -97,14 +103,22 @@ spec:
         cmd="$cmd -targetFolder ${TARGET_FOLDER} "
         cmd="$cmd -resultsFolder ${TARGET_RESULTS} "
         cmd="$cmd -fork $(params.fork) "
-        cmd="$cmd -branch $(params.branch)"
+        cmd="$cmd -branch $(params.branch) "
+        cmd="$cmd -envVars $(params.env-vars) "
+        if [[ -n "$(params.pnpm-command)" ]]; then
+          cmd="$cmd -pnpmCommand $(params.pnpm-command)"
+        else 
+          cmd="$cmd -pnpmCommand 'pnpm compile'"
+        fi
       fi
       if [[ $(params.os) == "darwin" ]]; then
         cmd="${TARGET_FOLDER}/builder.sh "
         cmd="$cmd --targetFolder ${TARGET_FOLDER} "
         cmd="$cmd --resultsFolder ${TARGET_RESULTS} "
         cmd="$cmd --fork $(params.fork) "
-        cmd="$cmd --branch $(params.branch)" 
+        cmd="$cmd --branch $(params.branch) " 
+        cmd="$cmd --envVars $(params.env-vars) " 
+        cmd="$cmd --pnpmCommand $(params.pnpm-command)"
       fi
       
       # Exec

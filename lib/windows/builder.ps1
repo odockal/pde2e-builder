@@ -298,7 +298,7 @@ git.exe version
 
 # Install pnpm
 write-host "Installing pnpm"
-npm install -g pnpm
+npm install -g pnpm@9
 pnpm --version
 
 # GIT clone and checkout part

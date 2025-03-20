@@ -16,6 +16,7 @@ param(
 # Program Versions
 $nodejsLatestVersion = "v22.14.0"
 $gitVersion = '2.42.0.2'
+$pnpmVersion = '10'
 
 # Global variables
 $global:scriptEnvVars = @()
@@ -298,7 +299,7 @@ git.exe version
 
 # Install pnpm
 write-host "Installing pnpm"
-npm install -g pnpm@9
+npm install -g pnpm@$pnpmVersion
 pnpm --version
 
 # GIT clone and checkout part

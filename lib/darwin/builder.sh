@@ -10,6 +10,7 @@ pnpmCommand="compile"
 # Version variables
 nodeVersion="v22.14.0"
 gitVersion="2.42.0"
+pnpmVersion="10"
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -163,7 +164,7 @@ git --version
 
 # Install pnpm
 echo "Installing pnpm"
-sudo npm install -g pnpm
+sudo npm install -g pnpm@$pnpmVersion
 echo "pnpm Version: $(pnpm --version)"
 
 # GIT clone and checkout part

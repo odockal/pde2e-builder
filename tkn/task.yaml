@@ -41,7 +41,7 @@ spec:
   # PDE2E Builder parameters
   - name: image-version
     description: pde2e-builder image version
-    default: '0.0.1'
+    default: '0.0.3'
   - name: fork
     description: Podman Desktop repo fork
     default: 'podman-desktop'

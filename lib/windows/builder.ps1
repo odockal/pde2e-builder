@@ -14,7 +14,7 @@ param(
 )
 
 # Program Versions
-$nodejsLatestVersion = "v22.14.0"
+$nodejsLatestVersion = "v24.12.0"
 $gitVersion = '2.42.0.2'
 $pnpmVersion = '10'
 
